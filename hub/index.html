@@ -188,6 +188,19 @@ details[open] > summary::after{transform:rotate(45deg)}
 .prog i{display:block;height:100%;background:var(--sky);border-radius:99px;transition:width .5s var(--ease)}
 .tcard details > summary{min-height:36px;font-size:.86rem;color:var(--muted)}
 .mv{justify-content:space-between;flex-wrap:nowrap}
+.mv .fbtn{margin-right:auto}
+.focusing .links,.focusing #subnav{display:none!important}
+.fx-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:860px){.fx-grid{grid-template-columns:1fr}}
+.fx-need{display:flex;flex-direction:column;gap:8px;padding-left:1.1em}
+.fx-mats{display:flex;flex-direction:column;gap:6px}
+.fx-mat{display:flex;gap:6px;align-items:center}
+.fx-mat a{flex:1;min-width:0;display:flex;gap:12px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--tile2);color:var(--ink);text-decoration:none;transition:background .2s}
+@media (hover:hover){.fx-mat a:hover{background:color-mix(in srgb, var(--accent) 12%, var(--tile2))}}
+.fx-mat a .grow{flex:1;min-width:0}
+.fx-mat .ic{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(255,255,255,.06);color:var(--accent);font-size:.9rem}
+.fx-now{background:color-mix(in srgb, var(--accent) 10%, transparent);border-radius:10px}
+.fx-clock{font-family:var(--f-head);font-size:2.6rem;font-weight:300;letter-spacing:.02em;line-height:1}
 .mv button{min-height:38px;padding:7px 12px;font-size:.84rem}
 .empty{padding:14px 4px}
 
@@ -330,6 +343,9 @@ details[open] > summary::after{transform:rotate(45deg)}
     </div>
   </section>
 
+  <!-- FOCUS -->
+  <section id="v-focus" class="stack-lg" hidden></section>
+
   <!-- MODULE PAGE -->
   <section id="v-module" class="stack-lg" hidden>
     <header class="top"><a class="back" href="#learn">← Learn</a><p class="label" id="mod-code"></p><h1 id="mod-name"></h1><div class="row" id="mod-links"></div></header>
@@ -448,8 +464,8 @@ let toastT;
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, 2400); }
 
 /* ---------- store: claude db when available, this browser otherwise ---------- */
-const COLS = ['tasks','notes','cards','log','rewards','settings','suggestions'];
-const S = {tasks:[], notes:[], cards:[], log:[], rewards:[], suggestions:[], settings:{...DEFAULT_SETTINGS}, mode:'loading'};
+const COLS = ['tasks','notes','cards','log','rewards','settings','suggestions','packs'];
+const S = {tasks:[], notes:[], cards:[], log:[], rewards:[], suggestions:[], packs:[], settings:{...DEFAULT_SETTINGS}, mode:'loading'};
 let db = null, sample = null;
 const queues = {};
 function q(key, fn){ const p = (queues[key]||Promise.resolve()).then(fn, fn); queues[key]=p.catch(()=>{}); return p; }
@@ -672,7 +688,7 @@ function renderToday(){
       : `<div class="row"><button class="primary big" data-act="start" data-t="${first.id}" data-s="${st.id}">Start</button><button data-act="snooze" data-t="${first.id}">Not now</button><button data-act="split" data-t="${first.id}" data-s="${st.id}">Break it down</button></div>
         <button class="ghost" style="align-self:flex-start;padding-inline:0" data-act="done" data-t="${first.id}" data-s="${st.id}">Already done it</button>`}
       ${after||life ? `<p class="small muted">After this: ${after?esc(after):''}${after&&life?' · ':''}${life?esc(life.title)+' is due '+inDays(life.due):''}</p>`:''}
-      <a class="small muted" href="#todo">See the full list →</a>
+      <div class="row between"><a class="small muted" href="#todo">See the full list →</a><a class="btn" href="#focus-${first.id}">Focus mode</a></div>
     </div>`;
     if(running){ const tick=()=>{ const el=$('#focus-clock'); if(!el) return clearInterval(focusTick); const s=Math.floor((Date.now()-focusRun.t0)/1000); el.textContent=`Going · ${pad(Math.floor(s/60))}:${pad(s%60)}`; }; tick(); focusTick=setInterval(tick,1000); }
   }
@@ -826,7 +842,7 @@ function cardHtml(t){
       <div class="grow" style="${s.done?'text-decoration:line-through;color:var(--muted)':''}">${esc(s.text)} <span class="small muted">~${s.mins||10}m</span></div></div>`).join('')}</div>
       <div class="row" style="margin-top:8px">${d?`<button class="ghost" data-act="ask" data-do="reset" data-t="${t.id}" data-label="Slide to reset this task">Reset</button>`:''}<button class="ghost" data-act="archive" data-t="${t.id}">${col==='done'?'Archive':'Remove task'}</button></div>
     </details>
-    <div class="row mv">${ci>0?`<button class="ghost" data-act="move" data-t="${t.id}" data-k="${COLS_B[ci-1].id}" aria-label="Move back to ${COLS_B[ci-1].name}">← Back</button>`:'<span></span>'}${ci<2?`<button data-act="move" data-t="${t.id}" data-k="${COLS_B[ci+1].id}" aria-label="Move to ${COLS_B[ci+1].name}">${ci===0?'Start':'Done'} →</button>`:''}</div>
+    <div class="row mv">${col!=='done'?`<a class="btn fbtn" href="#focus-${t.id}" draggable="false">Focus</a>`:''}${ci>0?`<button class="ghost" data-act="move" data-t="${t.id}" data-k="${COLS_B[ci-1].id}" aria-label="Move back to ${COLS_B[ci-1].name}">← Back</button>`:'<span></span>'}${ci<2?`<button data-act="move" data-t="${t.id}" data-k="${COLS_B[ci+1].id}" aria-label="Move to ${COLS_B[ci+1].name}">${ci===0?'Start':'Done'} →</button>`:''}</div>
   </article>`;
 }
 function renderBoard(tasks, el = $('#plan-list')){
@@ -1146,15 +1162,17 @@ function askSlide(btn){
 /* ---------- routing ---------- */
 const TABS = ['home','calendar','todo','today','learn','rewards'];
 let lastTab = null;
-function tab(){ const h = location.hash.slice(1); if(h.startsWith('mod-') && curModule()) return 'module'; return TABS.includes(h) ? h : 'home'; }
+function tab(){ const h = location.hash.slice(1); if(h.startsWith('focus-')) return 'focus'; if(h.startsWith('mod-') && curModule()) return 'module'; return TABS.includes(h) ? h : 'home'; }
 function renderAll(){
   const cur = tab();
-  [...TABS,'module'].forEach(t => { $('#v-'+t).hidden = t!==cur; });
+  [...TABS,'module','focus'].forEach(t => { $('#v-'+t).hidden = t!==cur; });
+  document.documentElement.classList.toggle('focusing', cur==='focus');
+  if(cur==='focus') renderFocus(); else { clearInterval(focusTimerTick); }
   TABS.forEach(t => document.querySelector(`[data-tab="${t}"]`).setAttribute('aria-current', (t===cur || (t==='learn' && cur==='module'))?'page':'false'));
   if(cur!=='learn' && cur!=='module') subnavOpen = false;
   renderSubnav(cur);
   if(cur==='module') renderModule();
-  const key = cur==='module' ? location.hash : cur;
+  const key = cur==='module'||cur==='focus' ? location.hash : cur;
   if(key!==lastTab){ lastTab=key; const v=$('#v-'+cur); v.hidden=true; void v.offsetWidth; v.hidden=false; }
   renderIdeas(); renderToday(); renderPlan(); renderLearn(); renderRewards(); renderCalendar(); renderHome();
 }
@@ -1168,6 +1186,9 @@ document.addEventListener('click', async e => {
     case 'done': b.disabled = true; await completeStep(T, St); break;
     case 'undo': await undoStep(T, St); break;
     case 'split': await splitStep(T, St, b); break;
+    case 'fxtimer': focusTimer = {end: Date.now() + Number(K)*60000}; renderFocusTimer(); break;
+    case 'fxstop': focusTimer = null; renderFocusTimer(); break;
+    case 'fxdellink': { const t=S.tasks.find(x=>x.id===T); if(t){ const links=[...(t.links||[])]; links.splice(Number(K),1); await store.set('tasks', t.id, {...strip(t), links}); } break; }
     case 'snooze': await snooze(T); break;
     case 'ritual': {
       const ex = logToday().find(l=>l.kind==='ritual'&&l.label===K);
@@ -1271,6 +1292,81 @@ $('#f-reward').addEventListener('submit', async e=>{
   e.preventDefault();
   await store.set('rewards', uid(), {name:$('#fr-name').value.trim(), cost:Math.max(1, Number($('#fr-cost').value)||1)*10});
   e.target.reset(); toast('Treat added');
+});
+
+
+/* ---------- focus mode: one task, everything you need for it ---------- */
+const KIND_IC = {video:'▶', worksheet:'✎', slides:'▭', doc:'▤', page:'◇', reading:'❏', activity:'◎', mine:'★'};
+let focusTimer = null, focusTimerTick = null, noteSaveT = null;
+function packFor(t){
+  if(!t || !t.module) return null;
+  const tt = (t.title||'').toLowerCase();
+  return S.packs.find(p => p.id===t.packId) || S.packs.find(p => p.module===t.module && (p.match||[]).some(w => tt.includes(w))) || null;
+}
+function focusMaterials(t, p){
+  const m = moduleList().find(x => x.name===t.module), out = [];
+  if(p?.url) out.push({label:'Assignment and submission page', url:p.url, kind:'page'});
+  (p?.materials||[]).forEach(x => out.push(x));
+  if(!p && m?.url){ out.push({label:m.name+' on Canvas', url:m.url, kind:'page'}, {label:'Panopto recordings', url:m.url+'/external_tools/3491', kind:'video'}, {label:'Reading list', url:m.url+'/external_tools/8601', kind:'reading'}); }
+  (t.links||[]).forEach((x,i) => out.push({...x, kind:'mine', own:i}));
+  return out;
+}
+function fmtClock(s){ return pad(Math.floor(s/60))+':'+pad(s%60); }
+function renderFocusTimer(){
+  const el = $('#fx-timer'); if(!el) return;
+  clearInterval(focusTimerTick);
+  if(!focusTimer){ el.innerHTML = `<p class="label">Focus timer</p><div class="row">${[15,25,45].map(n=>`<button data-act="fxtimer" data-k="${n}">${n} min</button>`).join('')}</div><p class="small muted">Phone face down. One step at a time.</p>`; return; }
+  const draw = () => { const left = Math.max(0, Math.round((focusTimer.end-Date.now())/1000));
+    const c = $('#fx-clock'); if(c) c.textContent = fmtClock(left);
+    if(!left){ clearInterval(focusTimerTick); focusTimer = null; toast('Time’s up. Stand up, get some water, take 5.'); renderFocusTimer(); } };
+  el.innerHTML = `<p class="label">Focus timer</p><p class="fx-clock num" id="fx-clock"></p><div class="row"><button class="ghost" data-act="fxstop">Stop</button></div>`;
+  draw(); focusTimerTick = setInterval(draw, 1000);
+}
+function renderFocus(){
+  const id = location.hash.slice(7), t = S.tasks.find(x => x.id===id), v = $('#v-focus');
+  if(!t){ v.innerHTML = `<header class="top"><a class="back" href="#todo">← To do</a><h1>Task not found</h1><p class="sub">It may have been removed.</p></header>`; return; }
+  const p = packFor(t), steps = t.steps||[], d = steps.filter(s=>s.done).length, next = steps.find(s=>!s.done);
+  const mats = focusMaterials(t, p);
+  const keepNote = document.activeElement?.id==='fx-note' ? $('#fx-note').value : null;
+  v.innerHTML = `
+    <header class="top"><a class="back" href="${t.module && curModuleByName(t.module) ? '#'+slug(t.module) : '#todo'}">← ${esc(t.module||'To do')}</a>
+      <p class="label">Focus${p?.kind ? ' · '+esc(p.kind) : ''}</p><h1>${esc(t.title)}</h1>
+      <div class="row">${dueChip(t.due)}<span class="small muted">${d} of ${steps.length} steps done</span></div>
+      <div class="prog" style="max-width:420px"><i style="width:${steps.length?Math.round(d/steps.length*100):0}%"></i></div></header>
+    <div class="fx-grid">
+      <div class="stack-lg">
+        ${next ? `<div class="focus"><p class="label">Do this now · about ${next.mins||10} min</p><p class="step">${esc(next.text)}</p>
+          <div class="row"><button class="primary big" data-act="done" data-t="${t.id}" data-s="${next.id}">${(t.paid||[]).includes(next.id)?'Done':`Done · +${leaves(d?PTS.step:PTS.firstStep)} leaf`}</button><button data-act="split" data-t="${t.id}" data-s="${next.id}">Break it down</button></div></div>`
+        : `<div class="focus"><p class="label">All steps done</p><p class="step">Nice work.</p>${p?.url?`<a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener">Check your submission ↗</a>`:''}</div>`}
+        ${p?.brief || t.detail ? `<div class="card stack"><h3>What this is</h3><p>${esc(p?.brief || t.detail)}</p></div>` : ''}
+        ${p?.need?.length ? `<div class="card stack"><h3>What it needs</h3><ul class="fx-need">${p.need.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+        <div class="card stack"><h3>All the steps</h3><div class="list">${steps.map(s=>`
+          <div class="item${s===next?' fx-now':''}"><button class="check" aria-label="${s.done?'Mark not done':'Mark done'}" aria-pressed="${!!s.done}" data-act="${s.done?'undo':'done'}" data-t="${t.id}" data-s="${s.id}">${s.done?'✓':''}</button>
+          <div class="grow" style="${s.done?'text-decoration:line-through;color:var(--muted)':''}">${esc(s.text)} <span class="small muted">~${s.mins||10}m</span></div></div>`).join('')}</div></div>
+      </div>
+      <div class="stack-lg">
+        <div class="card stack" id="fx-timer"></div>
+        <div class="card stack"><h3>Your material</h3>
+          ${mats.length ? `<div class="fx-mats">${mats.map(x=>`<div class="fx-mat"><a href="${esc(x.url)}" target="_blank" rel="noopener"><span class="ic"><span>${KIND_IC[x.kind]||'◇'}</span></span><span class="grow">${esc(x.label)}</span><span class="muted" aria-hidden="true">↗</span></a>${x.own!==undefined?`<button class="ghost" data-act="fxdellink" data-t="${t.id}" data-k="${x.own}" aria-label="Remove ${esc(x.label)}">×</button>`:''}</div>`).join('')}</div>` : `<p class="small muted">Nothing attached yet.</p>`}
+          <details><summary class="small">Add your own link</summary><form id="fx-addlink" class="stack" style="margin-top:10px" data-t="${t.id}"><input id="fx-l-label" placeholder="Name, e.g. My draft" required><input id="fx-l-url" type="url" placeholder="https://…" required><button type="submit">Add link</button></form></details>
+        </div>
+        <div class="card stack"><h3>Notes</h3><textarea id="fx-note" rows="6" placeholder="Ideas, questions for your tutor, where you got to…" data-t="${t.id}">${esc(keepNote ?? t.focusNote ?? '')}</textarea><p class="small muted">Saves as you type.</p></div>
+      </div>
+    </div>`;
+  if(keepNote!==null){ const n=$('#fx-note'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+  renderFocusTimer();
+}
+function curModuleByName(name){ return moduleList().find(m=>m.name===name); }
+document.addEventListener('input', e => {
+  if(e.target.id!=='fx-note') return;
+  const id = e.target.dataset.t, val = e.target.value; clearTimeout(noteSaveT);
+  noteSaveT = setTimeout(async () => { const t = S.tasks.find(x=>x.id===id); if(t) await store.set('tasks', t.id, {...strip(t), focusNote:val}); }, 800);
+});
+document.addEventListener('submit', async e => {
+  if(e.target.id!=='fx-addlink') return; e.preventDefault();
+  const t = S.tasks.find(x=>x.id===e.target.dataset.t); if(!t) return;
+  const label = $('#fx-l-label').value.trim(), url = $('#fx-l-url').value.trim(); if(!label || !/^https?:\/\//i.test(url)) return;
+  await store.set('tasks', t.id, {...strip(t), links:[...(t.links||[]), {label, url}]}); toast('Link added');
 });
 
 renderAll();
