@@ -214,6 +214,10 @@ details[open] > summary::after{transform:rotate(45deg)}
 .modlink{display:flex;flex-direction:column;gap:4px;padding:16px;border-radius:14px;background:var(--tile);color:var(--ink);text-decoration:none;transition:transform .3s var(--ease),background .3s;box-shadow:var(--shadow)}
 .modlink span{font-family:var(--f-head);font-weight:500}
 .modlink small{font-size:.78rem;color:var(--muted)}
+.modlink{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+.modmain{display:flex;flex-direction:column;gap:4px;color:var(--ink);text-decoration:none;min-width:0;flex:1}
+.modcanvas{flex:none;font-family:var(--f-head);font-size:.8rem;color:var(--accent);text-decoration:none;padding:7px 11px;border:1px solid var(--line);border-radius:999px;min-height:32px;display:inline-flex;align-items:center}
+@media (hover:hover){.modcanvas:hover{background:var(--tile2)}}
 @media (hover:hover){.modlink:hover{transform:translateY(-2px);background:var(--tile2)}}
 
 /* calendar */
@@ -540,11 +544,16 @@ async function completeStep(taskId, stepId){
   const isFirst = !steps.some(s=>s.done);
   steps[i].done = true; steps[i].doneAt = Date.now();
   const allDone = steps.every(s=>s.done);
-  await store.set('tasks', t.id, {...strip(t), steps});
-  let pts = isFirst ? PTS.firstStep : PTS.step;
-  await addLog('step', pts, steps[i].text);
-  if(allDone){ await addLog('task', PTS.taskDone, 'Finished: '+t.title); pts += PTS.taskDone; toast(`Task finished. +${pts} pts`); }
-  else toast(isFirst ? `You started. That's the hard bit. +${pts}` : `Done. +${pts} pts`);
+  // Leaves are paid once per step and once per task, so undoing, resetting or moving a card back can't earn them twice.
+  const paid = new Set(t.paid || t.steps.filter(s=>s.done).map(s=>s.id)), payStep = !paid.has(stepId), payTask = allDone && !paid.has('task');
+  if(payStep) paid.add(stepId); if(payTask) paid.add('task');
+  await store.set('tasks', t.id, {...strip(t), steps, paid:[...paid]});
+  let pts = payStep ? (isFirst ? PTS.firstStep : PTS.step) : 0;
+  if(payStep) await addLog('step', pts, steps[i].text);
+  if(payTask){ await addLog('task', PTS.taskDone, 'Finished: '+t.title); pts += PTS.taskDone; }
+  if(!pts) toast(allDone ? 'Finished again. You already got the leaves for this one.' : 'Done. You already got the leaf for this step.');
+  else if(allDone) toast(`Task finished. +${leaves(pts)} lea${leaves(pts)===1?'f':'ves'}`);
+  else toast(isFirst ? `You started. That's the hard bit. +${leaves(pts)} leaf` : `Done. +${leaves(pts)} leaf`);
 }
 async function undoStep(taskId, stepId){
   const t = S.tasks.find(x=>x.id===taskId); if(!t) return;
@@ -659,7 +668,7 @@ function renderToday(){
       <p class="step">${esc(st.text)}</p>
       <p class="small muted">${esc(first.title)} · step ${doneN+1} of ${first.steps.length}</p>
       ${running ? `<div class="row"><span class="chip ok num" id="focus-clock">Going · 00:00</span></div>
-        <div class="row"><button class="primary big" style="flex:1" data-act="done" data-t="${first.id}" data-s="${st.id}">Done · +${leaves(doneN?PTS.step:PTS.firstStep)} leaf</button><button class="ghost" data-act="stopfocus">Pause</button></div>`
+        <div class="row"><button class="primary big" style="flex:1" data-act="done" data-t="${first.id}" data-s="${st.id}">${(first.paid||[]).includes(st.id) ? 'Done' : `Done · +${leaves(doneN?PTS.step:PTS.firstStep)} leaf`}</button><button class="ghost" data-act="stopfocus">Pause</button></div>`
       : `<div class="row"><button class="primary big" data-act="start" data-t="${first.id}" data-s="${st.id}">Start</button><button data-act="snooze" data-t="${first.id}">Not now</button><button data-act="split" data-t="${first.id}" data-s="${st.id}">Break it down</button></div>
         <button class="ghost" style="align-self:flex-start;padding-inline:0" data-act="done" data-t="${first.id}" data-s="${st.id}">Already done it</button>`}
       ${after||life ? `<p class="small muted">After this: ${after?esc(after):''}${after&&life?' · ':''}${life?esc(life.title)+' is due '+inDays(life.due):''}</p>`:''}
@@ -834,7 +843,9 @@ async function moveTask(id, to){
   const t = S.tasks.find(x=>x.id===id); if(!t || colOf(t)===to) return;
   let steps = (t.steps||[]).map(s=>({...s}));
   if(to==='done'){ const left = steps.filter(s=>!s.done).length; steps.forEach(s=>{ if(!s.done){ s.done=true; s.doneAt=Date.now(); } });
-    await store.set('tasks', t.id, {...strip(t), steps, status:'done'}); if(left) await addLog('task', PTS.taskDone, 'Finished: '+t.title); toast(`Completed. +${PTS.taskDone}`); return; }
+    const paid = new Set(t.paid || (t.steps||[]).filter(s=>s.done).map(s=>s.id)), pay = left && !paid.has('task'); steps.forEach(s=>paid.add(s.id)); paid.add('task');
+    await store.set('tasks', t.id, {...strip(t), steps, status:'done', paid:[...paid]}); if(pay) await addLog('task', PTS.taskDone, 'Finished: '+t.title);
+    toast(pay ? `Completed. +${leaves(PTS.taskDone)} leaves` : 'Completed. You already got the leaves for this one.'); return; }
   if(colOf(t)==='done'){ const last=[...steps].filter(s=>s.doneAt).sort((a,b)=>b.doneAt-a.doneAt)[0] || steps[steps.length-1]; if(last){ last.done=false; last.doneAt=null; } }
   await store.set('tasks', t.id, {...strip(t), steps, status:to});
 }
@@ -943,7 +954,7 @@ function renderLearn(){
   const links = S.settings.moduleLinks || [];
   const mods = moduleList();
   $('#learn-mods').innerHTML = mods.length ? `<div class="stack"><p class="label">Your modules</p><div class="modgrid">${mods.map(m=>{ const open=S.tasks.filter(t=>!t.archived&&t.module===m.name&&colOf(t)!=='done').length, cd=S.cards.filter(c=>c.module===m.name&&(c.due||'')<=today()).length;
-    return `<a class="modlink" href="#${m.slug}"><span>${esc(m.name)}</span><small>${open} to do · ${cd} card${cd===1?'':'s'} due</small></a>`;}).join('')}</div></div>` : '';
+    return `<div class="modlink"><a class="modmain" href="#${m.slug}"><span>${esc(m.name)}</span><small>${open} to do · ${cd} card${cd===1?'':'s'} due</small></a>${m.url?`<a class="modcanvas" href="${esc(m.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(m.name)} on Canvas">Canvas ↗</a>`:''}</div>`;}).join('')}</div></div>` : '';
   const due = cardsDue();
   $('#learn-due').innerHTML = session ? '' : `<div class="card row between"><div><h3>${due.length ? due.length+' cards ready' : 'No cards due'}</h3><p class="small muted">${S.cards.length} cards in total${due.length?'. Hard ones first.':'. Come back tomorrow.'}</p></div>${due.length?'<button class="primary" data-act="startreview">Start review</button>':''}</div>`;
   const notes = [...S.notes].sort((a,b)=>(b.created||0)-(a.created||0));
