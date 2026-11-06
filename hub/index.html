@@ -1331,4 +1331,44 @@ boot();
 })();
 </script>
 
+<style>
+/* Glance mode: the desktop shows the day at a glance; ticking happens in the private hub. */
+.glance .links,.glance #banner,.glance #subnav{display:none!important}
+.glance #home-grid a[href="#learn"],.glance #home-grid a[href="#rewards"],.glance .t-arrow{display:none}
+.glance .tile.hero{grid-row:auto}
+.glance .tile.hero>div[style*="margin-top:auto"]{display:none}
+.glance #v-home .hint{color:var(--muted);font-size:.9rem}
+.glance .tile,.glance .blk{cursor:pointer}
+@media (min-width:1100px){
+  .glance .wrap{max-width:1320px}
+  .glance #v-home{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start;gap:22px}
+  .glance #v-home header.top{grid-column:1/-1}
+  .glance .bento{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .glance .tile.wide,.glance .tile.hero{grid-column:span 2}
+  .glance #today-day{gap:6px}
+  .glance #today-day .blk{padding:8px 12px}
+  .glance #today-day .blk .small{display:none}
+}
+</style>
+<script>
+(function(){
+  const HUB = 'https://claude.ai/artifact/92XhcSqidWhnN4hDrJzCrU';
+  document.documentElement.classList.add('glance');
+  const toHome = () => { if(location.hash && location.hash !== '#home'){ history.replaceState(null, '', '#home'); renderAll(); } };
+  toHome(); addEventListener('hashchange', toHome);
+  document.addEventListener('click', e => {
+    if(e.target.closest('#still-btn')) return;
+    if(!e.target.closest('a,button,.tile,.blk,.card')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    window.open(HUB, '_blank', 'noopener');
+  }, true);
+  const top = document.querySelector('#v-home header.top');
+  if(top && !top.querySelector('.hint')){ const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Tap anything to open your hub and tick it off there.'; top.appendChild(p); }
+  const day = document.getElementById('today-day');
+  const card = day && day.closest('.card');
+  if(card){ const note = card.querySelector('.small.muted'); if(note) note.textContent = ''; document.getElementById('v-home').appendChild(card); }
+  setInterval(() => { if(!document.hidden) renderAll(); }, 5*60*1000);   // keep the greeting and the 'now' line current
+})();
+</script>
+
 </body></html>
