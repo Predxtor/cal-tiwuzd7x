@@ -3,8 +3,12 @@
 
 Writes cal.ics (deadlines, bills, weekday study blocks) and canvas.json
 (open assignments, for the hub). Standard library only.
+
+titles.json (or the file in TITLES_JSON) maps "<assignment id>" to a short
+title, so the calendar uses the same names as the hub. Assignments missing
+from it get a cleaned-up Canvas title.
 """
-import json, os, sys, urllib.request
+import json, os, re, sys, urllib.request
 from datetime import date, datetime, timedelta, timezone
 
 BASE = "https://canvas.sussex.ac.uk/api/v1"
@@ -29,6 +33,28 @@ def short(name):
     return name.split("[")[0].strip()
 
 
+def clean(title):
+    """'Essay (1500 Words) T1 Week 9' -> 'Essay (1500 words)'"""
+    title = re.sub(r"\s*T\d\s+Week\s+\d+\s*$", "", title, flags=re.I)
+    return re.sub(r"\bWords\b", "words", title).strip()
+
+
+def old_stamps(path="cal.ics"):
+    """UID -> (event lines without DTSTAMP, DTSTAMP) from the last run, so unchanged events keep their stamp."""
+    try:
+        text = open(path, newline="").read()
+    except OSError:
+        return {}
+    out = {}
+    for block in text.split("BEGIN:VEVENT")[1:]:
+        lines = block.split("END:VEVENT")[0].strip().split("\r\n")
+        uid = next((l for l in lines if l.startswith("UID:")), None)
+        stamp = next((l for l in lines if l.startswith("DTSTAMP:")), None)
+        if uid and stamp:
+            out[uid] = ([l for l in lines if not l.startswith("DTSTAMP:")], stamp)
+    return out
+
+
 def main():
     today = datetime.now(timezone.utc).date()
     courses = get("/courses?enrollment_state=active&per_page=100&include[]=term")
@@ -44,27 +70,34 @@ def main():
             items.append({"id": a["id"], "module": short(c["name"]), "title": a["name"].strip(),
                           "due": due.isoformat(), "submitted": state in ("submitted", "graded", "pending_review")})
     items.sort(key=lambda x: x["due"])
+    try:
+        titles = {str(k): v for k, v in json.load(open(os.environ.get("TITLES_JSON", "titles.json"))).items() if v}
+    except (OSError, ValueError) as e:
+        titles = {}
+        print("No titles file, using Canvas titles:", e)
 
     L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Hub//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
          "X-WR-CALNAME:Uni", "REFRESH-INTERVAL;VALUE=DURATION:PT12H", "X-PUBLISHED-TTL:PT12H"]
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = "DTSTAMP:" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    previous = old_stamps()
 
     def ev(uid, summary, start, end, allday=False, alarm=None, desc=""):
-        e = ["BEGIN:VEVENT", f"UID:{uid}@cal", f"DTSTAMP:{stamp}", f"SUMMARY:{summary}"]
+        e = [f"UID:{uid}@cal", f"SUMMARY:{summary}"]
         e += ([f"DTSTART;VALUE=DATE:{start}", f"DTEND;VALUE=DATE:{end}", "TRANSP:TRANSPARENT"]
               if allday else [f"DTSTART:{start}", f"DTEND:{end}"])
         if desc:
             e.append("DESCRIPTION:" + desc)
         if alarm:
             e += ["BEGIN:VALARM", "ACTION:DISPLAY", f"DESCRIPTION:{summary}", f"TRIGGER:{alarm}", "END:VALARM"]
-        L.extend(e + ["END:VEVENT"])
+        old = previous.get(e[0])
+        L.extend(["BEGIN:VEVENT", e[0], old[1] if old and old[0] == e else stamp] + e[1:] + ["END:VEVENT"])
 
     for it in items:
         due = datetime.fromisoformat(it["due"]).astimezone(timezone.utc)
         if due.date() < today - timedelta(days=7):
             continue
-        tag = "DONE" if it["submitted"] else "DUE"
-        ev(f"canvas-{it['id']}", f"{tag}: {it['module']} - {it['title']}",
+        name = titles.get(str(it["id"])) or f"{it['module']} {clean(it['title'])}"
+        ev(f"canvas-{it['id']}", ("Submitted: " if it["submitted"] else "Due: ") + name,
            (due - timedelta(hours=1)).strftime("%Y%m%dT%H%M%SZ"), due.strftime("%Y%m%dT%H%M%SZ"),
            alarm=None if it["submitted"] else "-P1D", desc="Submit on Canvas.")
 
@@ -74,16 +107,13 @@ def main():
             ev(f"bills-{b}", "Bills due", d.strftime("%Y%m%d"), (d + timedelta(1)).strftime("%Y%m%d"), allday=True, alarm="PT9H")
 
     open_items = [it for it in items if not it["submitted"] and datetime.fromisoformat(it["due"]).date() >= today]
-    d, k = today, 0
+    # One plain block on weekdays while a deadline is near. The hub decides what to work on.
+    d = today
     while open_items and d <= max(datetime.fromisoformat(i["due"]).date() for i in open_items):
-        if d.weekday() < 5:
-            cands = [i for i in open_items if d < datetime.fromisoformat(i["due"]).date() <= d + timedelta(LOOKAHEAD_DAYS)]
-            if cands:
-                pick = cands[0] if k % 3 != 2 or len(cands) == 1 else cands[1]   # nearest deadline gets 2 of every 3 blocks
-                ds = d.strftime("%Y%m%d")
-                ev(f"study-{ds}", f"Study: {pick['module']} - {pick['title']}", ds + "T" + STUDY_START, ds + "T" + STUDY_END,
-                   desc="Do the next step in the hub. Move this block if it clashes.")
-                k += 1
+        if d.weekday() < 5 and any(d < datetime.fromisoformat(i["due"]).date() <= d + timedelta(LOOKAHEAD_DAYS) for i in open_items):
+            ds = d.strftime("%Y%m%d")
+            ev(f"study-{ds}", "Study block", ds + "T" + STUDY_START, ds + "T" + STUDY_END,
+               desc="Open the hub and do the step under Up next.")
         d += timedelta(1)
 
     L.append("END:VCALENDAR")
