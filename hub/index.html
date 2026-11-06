@@ -227,7 +227,7 @@ details[open] > summary::after{transform:rotate(45deg)}
 .calgrid button.day:focus-visible{outline:2px solid var(--sky);outline-offset:1px}
 .dots{display:flex;gap:3px;flex-wrap:wrap}
 .dots i{width:7px;height:7px;border-radius:50%;background:var(--muted);display:block}
-.dots i.uni{background:var(--k-uni)} .dots i.apple{background:var(--lav)} .dots i.money{background:var(--amber)} .dots i.pay{background:var(--ok)}
+.dots i.uni{background:var(--k-uni)} .dots i.money{background:var(--amber)} .dots i.pay{background:var(--ok)}
 @media (max-width:420px){.calgrid button.day{min-height:50px;padding:5px}}
 
 /* slide to confirm */
@@ -319,8 +319,6 @@ details[open] > summary::after{transform:rotate(45deg)}
             <label>Paid every (days)<input id="fs-every" type="number" min="1" max="60"></label>
           </div>
           <label>Rest days per week that don't break your streak<input id="fs-rest" type="number" min="0" max="4"></label>
-          <label>Apple Calendar links (one per line)<textarea id="fs-ical" rows="3" placeholder="Paste a Public Calendar link from your iPhone" autocomplete="off" spellcheck="false"></textarea></label>
-          <p class="small muted" id="fs-ical-note">In Calendar on your iPhone, tap Calendars, then ⓘ next to a calendar, turn on Public Calendar and copy the link. Anyone with a link can see that calendar, so keep it here only. Events are read every morning.</p>
           <button type="submit" class="primary">Save setup</button>
           <p class="small muted">Payday stays in Apple Calendar. The hub only counts down to it, so nothing gets duplicated.</p>
         </form>
@@ -345,7 +343,7 @@ details[open] > summary::after{transform:rotate(45deg)}
 
   <!-- CALENDAR -->
   <section id="v-calendar" class="stack-lg" hidden>
-    <header class="top"><a class="back" href="#home">← Home</a><p class="label">What's coming up</p><h1>Calendar</h1><p class="sub">Deadlines, bills, paydays and your own Apple Calendar plans in one place.</p></header>
+    <header class="top"><a class="back" href="#home">← Home</a><p class="label">What's coming up</p><h1>Calendar</h1><p class="sub">Deadlines, bills and paydays in one place. Study blocks and lectures live in Apple Calendar.</p></header>
     <div class="stack">
       <div class="row between"><button class="ghost" data-act="calprev" aria-label="Previous month">←</button><h2 id="cal-title" class="num"></h2><button class="ghost" data-act="calnext" aria-label="Next month">→</button></div>
       <div class="calgrid" id="cal-grid"></div>
@@ -446,8 +444,8 @@ let toastT;
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, 2400); }
 
 /* ---------- store: claude db when available, this browser otherwise ---------- */
-const COLS = ['tasks','notes','cards','log','rewards','settings','suggestions','events'];
-const S = {tasks:[], notes:[], cards:[], log:[], rewards:[], suggestions:[], events:[], apple:[], appleAt:null, settings:{...DEFAULT_SETTINGS}, mode:'loading'};
+const COLS = ['tasks','notes','cards','log','rewards','settings','suggestions'];
+const S = {tasks:[], notes:[], cards:[], log:[], rewards:[], suggestions:[], settings:{...DEFAULT_SETTINGS}, mode:'loading'};
 let db = null, sample = null;
 const queues = {};
 function q(key, fn){ const p = (queues[key]||Promise.resolve()).then(fn, fn); queues[key]=p.catch(()=>{}); return p; }
@@ -468,7 +466,6 @@ const store = {
 function err(e){ console.error(e); toast(e && e.code==='quota_exceeded' ? 'Storage is full. Delete some old notes.' : 'That did not save. Check your connection and try again.'); }
 function setCol(col, arr){
   if(col==='settings'){ const m = arr.find(d=>d.id==='main'); S.settings = {...DEFAULT_SETTINGS, ...(m||{})}; }
-  else if(col==='events'){ const a = arr.find(d=>d.id==='apple'); S.apple = a?.items||[]; S.appleAt = a?.syncedAt||null; }
   else S[col] = arr;
 }
 let FEED = [];
@@ -634,7 +631,6 @@ function buildDay(){
   if(!weekend && open[1]) B.push({at:14*60, mins:60, kind:'study', ic:'▤', title:'Focus: '+open[1].title, sub:'Next: '+(open[1].steps.find(s=>!s.done)?.text||'')});
   if(weekend) B.push({at:14*60, mins:60, kind:'life', ic:'◇', title:'Rest day. One small step if you fancy it'});
   S.tasks.filter(t=>!t.archived && t.due===today() && t.steps?.some(s=>!s.done)).forEach(t=>B.push({at:16*60, mins:0, kind:t.area==='uni'?'uni':'money', ic:t.area==='money'?'£':'!', title:'Due today: '+t.title}));
-  S.apple.filter(a=>a.date===today() && a.start).forEach(a=>{ const m = a.endTime ? toMin(a.endTime)-toMin(a.start) : 60; B.push({at:toMin(a.start), mins:Math.max(0,m), kind:'study', ic:'◷', title:a.title||'Busy', sub:a.cal||'Apple Calendar'}); });
   if(nextPayday()===today()) B.push({at:9*60+30, mins:0, kind:'money', ic:'£', title:'Payday'});
   return B.sort((a,b)=>a.at-b.at);
 }
@@ -795,9 +791,7 @@ function renderPlan(){
   if(document.activeElement?.closest('#f-settings')==null){
     $('#fs-modules').value = mods.join(', ');
     $('#fs-pay').value = S.settings.payStart||''; $('#fs-every').value = S.settings.payEvery||28; $('#fs-rest').value = S.settings.restDays??2;
-    $('#fs-ical').value = (S.settings.icalUrls||[]).join('\n');
   }
-  const ino = $('#fs-ical-note'); if(ino && S.appleAt) ino.dataset.synced = '1', ino.textContent = `Last read ${new Date(S.appleAt).toLocaleString('en-GB',{weekday:'short', hour:'2-digit', minute:'2-digit'})}: ${S.apple.length} event${S.apple.length===1?'':'s'} in the next two months. Anyone with a link can see that calendar, so keep it here only.`;
 }
 
 /* ---------- board (To do / In progress / Completed) ---------- */
@@ -859,14 +853,11 @@ function calEvents(from, to){
     const open = t.steps?.some(s=>!s.done);
     ev.push({date:t.due, kind:t.area==='uni'?'uni':'money', title:(open?'':'Done: ')+t.title, sub:t.module||AREAS.find(a=>a.id===t.area)?.name||'', id:t.id});
   });
-  const s = S.settings;
-  S.apple.forEach(a=>{ if(!a.date || (s.payStart && /pay ?day|paid/i.test(a.title||''))) return; let d = a.date; const last = a.end && a.end>a.date ? a.end : a.date;
-    for(let n=0; d<=last && n<14; n++, d=addDays(d,1)) if(d>=from && d<=to) ev.push({date:d, kind:'apple', title:a.title||'Busy', sub:(a.start && d===a.date ? a.start+(a.endTime?'–'+a.endTime:'')+' · ' : '')+(a.cal||'Apple Calendar'), id:'apple', time:d===a.date?a.start:null}); });
-  if(s.payStart){ let d=s.payStart; const every=Number(s.payEvery)||28; while(d<from) d=addDays(d,every); while(d<=to){ ev.push({date:d, kind:'pay', title:'Payday', sub:'From your Apple Calendar pattern'}); d=addDays(d,every); } }
-  return ev.sort((a,b)=>a.date.localeCompare(b.date) || (a.time||'99').localeCompare(b.time||'99'));
+  const s = S.settings; if(s.payStart){ let d=s.payStart; const every=Number(s.payEvery)||28; while(d<from) d=addDays(d,every); while(d<=to){ ev.push({date:d, kind:'pay', title:'Payday', sub:'From your Apple Calendar pattern'}); d=addDays(d,every); } }
+  return ev.sort((a,b)=>a.date.localeCompare(b.date));
 }
 function evRow(e, showDate){
-  return `<div class="item"><span class="dots"><i class="${e.kind}"></i></span><div class="grow"><div>${esc(e.title)}</div><div class="small muted">${showDate?nice(e.date)+' · ':''}${esc(e.sub)}</div></div>${e.kind==='pay'||e.kind==='apple'?'':dueChip(e.date)}</div>`;
+  return `<div class="item"><span class="dots"><i class="${e.kind}"></i></span><div class="grow"><div>${esc(e.title)}</div><div class="small muted">${showDate?nice(e.date)+' · ':''}${esc(e.sub)}</div></div>${e.kind==='pay'?'':dueChip(e.date)}</div>`;
 }
 function renderCalendar(){
   const first = parse(calMonth+'-01');
@@ -884,7 +875,7 @@ function renderCalendar(){
   $('#cal-grid').innerHTML = cells.join('');
   const sel = byDay[calSel] || calEvents(calSel, calSel);
   $('#cal-day-title').textContent = calSel===today() ? 'Today' : nice(calSel);
-  $('#cal-day').innerHTML = sel.length ? sel.map(e=>evRow(e,false)).join('') : `<p class="small muted">Nothing on this day.</p>`;
+  $('#cal-day').innerHTML = sel.length ? sel.map(e=>evRow(e,false)).join('') : `<p class="small muted">Nothing due. Check Apple Calendar for lectures and study blocks.</p>`;
   const ag = calEvents(today(), addDays(today(),14));
   $('#cal-agenda').innerHTML = ag.length ? ag.map(e=>evRow(e,true)).join('') : `<p class="small muted">A clear two weeks.</p>`;
 }
@@ -1248,9 +1239,8 @@ $('#f-modtask').addEventListener('submit', async e=>{
 $('#f-settings').addEventListener('submit', async e=>{
   e.preventDefault();
   const modules = $('#fs-modules').value.split(',').map(s=>s.trim()).filter(Boolean);
-  await store.set('settings','main',{...strip({id:0, ...S.settings}), modules, payStart:$('#fs-pay').value||null, payEvery:Number($('#fs-every').value)||28, restDays:Number($('#fs-rest').value)||0, icalUrls:$('#fs-ical').value.split(/\s+/).map(u=>u.trim().replace(/^webcal:/i,'https:')).filter(u=>/^https:\/\/[a-z0-9.-]+\.icloud\.com\//i.test(u))});
-  const raw = $('#fs-ical').value.split(/\s+/).filter(Boolean), kept = raw.filter(u=>/^(webcal|https):\/\/[a-z0-9.-]+\.icloud\.com\//i.test(u));
-  document.activeElement?.blur(); toast(raw.length>kept.length ? 'Saved. One link wasn’t an iCloud calendar link, so it was left out.' : kept.length ? 'Saved. Your calendar will show up after the next morning sync.' : 'Setup saved');
+  await store.set('settings','main',{...strip({id:0, ...S.settings}), modules, payStart:$('#fs-pay').value||null, payEvery:Number($('#fs-every').value)||28, restDays:Number($('#fs-rest').value)||0});
+  document.activeElement?.blur(); toast('Setup saved');
 });
 $('#fn-file').addEventListener('change', async e=>{
   const f = e.target.files[0]; if(!f) return;
