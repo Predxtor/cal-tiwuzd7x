@@ -1,0 +1,17 @@
+{
+ "week_start": "2026-11-09",
+ "week_end": "2026-11-15",
+ "made": "2026-11-08",
+ "blocks": [
+  {"date": "2026-11-09", "start": "11:30", "end": "13:00", "title": "Stats worksheets catch-up, then start the proposal",
+   "note": "1. Check which worksheets show as missing on Canvas (2 min)\n2. Email the stats team about any practicals you missed (10 min)\n3. Do the matching R tutorial (25 min)\n4. Proposal: open the brief and read only the first part (3 min)\n5. Proposal: open the Developing your Research Proposal worksheet (3 min)"},
+  {"date": "2026-11-10", "start": "11:30", "end": "13:00", "title": "Stats mop-up quiz, then proposal ideas",
+   "note": "Rent is due today, pay it first (5 min).\n1. Stats mop-up quiz (20 min)\n2. Proposal: redo the attention experiment demo (10 min)\n3. Proposal: read Forster & Lavie (2009), abstract and figures only (15 min)\n4. Proposal: jot 3 ideas for a repeated-measures variable (15 min)"},
+  {"date": "2026-11-11", "start": "11:30", "end": "13:00", "title": "Cognitive Psychology proposal: pick your idea",
+   "note": "1. Fill in the worksheet: idea, hypotheses, conditions (20 min)\n2. Find 2 more papers that back up your idea (25 min)\nSpare time: start the Introduction."},
+  {"date": "2026-11-12", "start": "11:30", "end": "13:00", "title": "Cognitive Psychology proposal: write the Introduction",
+   "note": "1. Write the Introduction, ending with your hypotheses (25 min, take longer if it's flowing)\n2. Dev Psych: read the three essay questions and pick one (5 min)\n3. Dev Psych: open the matching seminar page and note its two essential readings (5 min)"},
+  {"date": "2026-11-13", "start": "11:30", "end": "13:00", "title": "Proposal Method, then a first look at the poster",
+   "note": "Payday today.\n1. Proposal: write the Method in future tense (25 min)\n2. Neuro poster: find which question you were given (5 min)\n3. Neuro poster: download the template and save a copy (3 min)\n4. Neuro poster: look through the annotated example (10 min)"}
+ ]
+}
