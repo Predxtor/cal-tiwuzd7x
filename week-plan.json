@@ -1,0 +1,17 @@
+{
+ "week_start": "2026-11-16",
+ "week_end": "2026-11-22",
+ "made": "2026-11-15",
+ "blocks": [
+  {"date": "2026-11-16", "start": "11:30", "end": "13:00", "title": "Proposal: pick your idea",
+   "note": "1. Jot 3 ideas for a repeated-measures variable that could change mind-wandering, then pick one (15 min)\n2. Fill in the worksheet: idea, hypotheses, conditions, measure (20 min)\n3. Stats: check which worksheets show as missing on Canvas (2 min)\n4. Stats: email the stats team about any practicals you missed (10 min)"},
+  {"date": "2026-11-17", "start": "11:30", "end": "13:00", "title": "Proposal: papers and Introduction",
+   "note": "1. Find 2 more papers that back up your idea (25 min)\n2. Write the Introduction, ending with your hypotheses (25 min, keep going if it flows)"},
+  {"date": "2026-11-18", "start": "11:30", "end": "13:00", "title": "Proposal: Method and expected results",
+   "note": "1. Write the Method in future tense: participants, design, materials, procedure (25 min)\n2. Write the expected results and why they would matter (20 min)"},
+  {"date": "2026-11-19", "start": "11:30", "end": "13:00", "title": "Proposal check, then start Dev Psych",
+   "note": "1. Proposal: check it against the marking criteria and tidy APA references (20 min). Don't submit yet.\n2. Dev Psych: read the three essay questions and pick one (5 min)\n3. Dev Psych: open the matching seminar page and note its two essential readings (5 min)\n4. Dev Psych: read the first essential reading, abstract then conclusion (15 min)"},
+  {"date": "2026-11-20", "start": "11:30", "end": "13:00", "title": "First look at Stats report and poster",
+   "note": "1. Stats report: open Lab Report Information and read only Coding & Analysis (5 min)\n2. Stats report: open the Posit Cloud project and add your candidate number (5 min)\n3. Stats report: pick one scenario (10 min)\n4. Poster: find which question you were given (5 min)\n5. Poster: download the template and save a copy (3 min)\n6. Poster: look through the annotated example (10 min)"}
+ ]
+}
