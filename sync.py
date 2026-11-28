@@ -3,6 +3,10 @@
 
 Writes cal.ics (deadlines, bills, weekday study blocks) and canvas.json
 (open assignments, for the hub). Standard library only.
+
+Study blocks come from week-plan.json when it exists (written by the Sunday
+planning routine). Days that file covers use its blocks; every other weekday
+falls back to the automatic 11:30 block.
 """
 import json, os, sys, urllib.request
 from datetime import date, datetime, timedelta, timezone
@@ -23,6 +27,22 @@ def get(path):
         out.extend(data if isinstance(data, list) else [data])
         url = next((p.split(";")[0].strip("<> ") for p in link.split(",") if 'rel="next"' in p), None)
     return out
+
+
+def load_plan(path="week-plan.json"):
+    """Return (set of covered dates, list of blocks) from the weekly plan, or empty."""
+    try:
+        with open(path) as f:
+            plan = json.load(f)
+    except (OSError, ValueError):
+        return set(), []
+    start, end = date.fromisoformat(plan["week_start"]), date.fromisoformat(plan["week_end"])
+    covered = {start + timedelta(i) for i in range((end - start).days + 1)}
+    return covered, plan.get("blocks", [])
+
+
+def ics_text(s):
+    return s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
 
 
 def short(name):
@@ -73,10 +93,20 @@ def main():
         if d >= today - timedelta(days=7):
             ev(f"bills-{b}", "Bills due", d.strftime("%Y%m%d"), (d + timedelta(1)).strftime("%Y%m%d"), allday=True, alarm="PT9H")
 
+    covered, plan_blocks = load_plan()
+    for b in plan_blocks:
+        d = date.fromisoformat(b["date"])
+        if d < today or d not in covered:
+            continue
+        ds = d.strftime("%Y%m%d")
+        st, en = b["start"].replace(":", "") + "00", b["end"].replace(":", "") + "00"
+        ev(f"plan-{ds}-{st}", ics_text("Study: " + b["title"]), ds + "T" + st, ds + "T" + en,
+           alarm="-PT10M", desc=ics_text(b.get("note") or "Do these steps in the hub. Move this block if it clashes."))
+
     open_items = [it for it in items if not it["submitted"] and datetime.fromisoformat(it["due"]).date() >= today]
     d, k = today, 0
     while open_items and d <= max(datetime.fromisoformat(i["due"]).date() for i in open_items):
-        if d.weekday() < 5:
+        if d.weekday() < 5 and d not in covered:
             cands = [i for i in open_items if d < datetime.fromisoformat(i["due"]).date() <= d + timedelta(LOOKAHEAD_DAYS)]
             if cands:
                 pick = cands[0] if k % 3 != 2 or len(cands) == 1 else cands[1]   # nearest deadline gets 2 of every 3 blocks
